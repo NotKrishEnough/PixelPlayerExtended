@@ -115,6 +115,13 @@ android {
             ?: "b18441a1ff607e10a989891a5462e627"
         buildConfigField("int", "TELEGRAM_API_ID", telegramApiId)
         buildConfigField("String", "TELEGRAM_API_HASH", "\"$telegramApiHash\"")
+        // OAuth client IDs are public app identifiers, not client secrets. Keep local.properties
+        // override support while allowing cloud builds to use the configured project ID.
+        val googleWebClientId = providers.gradleProperty("GOOGLE_WEB_CLIENT_ID").orNull
+            ?: System.getenv("GOOGLE_WEB_CLIENT_ID")
+            ?: localProperties.getProperty("GOOGLE_WEB_CLIENT_ID")
+            ?: "554403773065-183l3jnvvb9a45tnb1r3dvgcmsnskp3q.apps.googleusercontent.com"
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
     }
 
     signingConfigs {
@@ -319,6 +326,7 @@ dependencies {
     implementation(libs.credentials)
     implementation(libs.credentials.play.services.auth)
     implementation(libs.googleid)
+    implementation(libs.play.services.auth)
     implementation(libs.androidx.security.crypto)
     implementation(libs.google.play.services.cast.framework)
     implementation(libs.tdlib)

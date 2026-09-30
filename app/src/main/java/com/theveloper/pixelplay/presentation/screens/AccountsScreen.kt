@@ -188,6 +188,40 @@ fun AccountsScreen(
                 )
             }
 
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "Google / YouTube Music",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Connect Google to authorize access to your YouTube playlists.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        FilledTonalButton(
+                            onClick = {
+                                context.startActivity(
+                                    Intent(context, com.theveloper.pixelplay.online.GoogleMusicAccountActivity::class.java)
+                                )
+                            }
+                        ) {
+                            Text("Connect Google")
+                        }
+                    }
+                }
+            }
+
             if (uiState.connectedAccounts.isNotEmpty()) {
                 item {
                     Text(

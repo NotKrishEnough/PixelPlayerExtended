@@ -93,6 +93,12 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".online.GoogleMusicAccountActivity"
+            android:exported="false"
+            android:label="Google account"
+            android:theme="@style/Theme.PixelPlay" />
+
+        <activity
             android:name=".presentation.gdrive.auth.GDriveLoginActivity"
             android:exported="false"
             android:label="Google Drive Login"
