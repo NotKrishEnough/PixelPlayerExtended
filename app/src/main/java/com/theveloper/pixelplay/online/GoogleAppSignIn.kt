@@ -7,6 +7,7 @@
  */
 package com.theveloper.pixelplay.online
 
+import android.app.Activity
 import android.content.Context
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
@@ -26,7 +27,7 @@ class GoogleAppSignIn(context: Context) {
     private val appContext = context.applicationContext
     private val credentialManager = CredentialManager.create(appContext)
 
-    suspend fun signIn(): GoogleSignInResult {
+    suspend fun signIn(activity: Activity): GoogleSignInResult {
         val clientId = BuildConfig.GOOGLE_WEB_CLIENT_ID
         require(clientId.isNotBlank()) {
             "GOOGLE_WEB_CLIENT_ID is missing. Add it to the root local.properties file."
@@ -41,7 +42,7 @@ class GoogleAppSignIn(context: Context) {
             .addCredentialOption(googleOption)
             .build()
 
-        val response = credentialManager.getCredential(appContext, request)
+        val response = credentialManager.getCredential(activity, request)
         val credential = response.credential
         require(
             credential is CustomCredential &&
