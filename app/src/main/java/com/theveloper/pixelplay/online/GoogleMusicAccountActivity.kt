@@ -1,8 +1,12 @@
 package com.theveloper.pixelplay.online
 
+import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -24,17 +28,35 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
 import com.theveloper.pixelplay.ui.theme.PixelPlayTheme
 import kotlinx.coroutines.launch
 
 class GoogleMusicAccountActivity : ComponentActivity() {
+    private val playlistsState = mutableStateOf<List<YouTubePlaylist>>(emptyList())
+    private val messageState = mutableStateOf<String?>(null)
+    private val busyState = mutableStateOf(false)
+    private val playlistClient by lazy { YouTubePlaylistClient(this) }
+
+    private val authorizationLauncher =
+        registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val data = result.data
+                if (data != null) lifecycleScope.launch { completeAuthorization(data) }
+                else messageState.value = "Google authorization returned no result."
+            } else {
+                messageState.value = "YouTube access was not granted."
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             PixelPlayTheme {
                 var account by remember { mutableStateOf<GoogleSignInResult?>(null) }
-                var busy by remember { mutableStateOf(false) }
-                var message by remember { mutableStateOf<String?>(null) }
+                val busy by busyState
+                val message by messageState
+                val playlists by playlistsState
                 val scope = rememberCoroutineScope()
                 val signIn = remember { GoogleAppSignIn(this) }
 
@@ -62,14 +84,14 @@ class GoogleMusicAccountActivity : ComponentActivity() {
                             Button(
                                 onClick = {
                                     scope.launch {
-                                        busy = true
-                                        message = null
+                                        busyState.value = true
+                                        messageState.value = null
                                         try {
                                             account = signIn.signIn(this@GoogleMusicAccountActivity)
                                         } catch (error: Exception) {
-                                            message = error.localizedMessage ?: "Google sign-in failed."
+                                            messageState.value = error.localizedMessage ?: "Google sign-in failed."
                                         } finally {
-                                            busy = false
+                                            busyState.value = false
                                         }
                                     }
                                 },
@@ -79,15 +101,46 @@ class GoogleMusicAccountActivity : ComponentActivity() {
                             Button(
                                 onClick = {
                                     scope.launch {
-                                        busy = true
+                                        busyState.value = true
+                                        messageState.value = null
+                                        try {
+                                            val authorization = playlistClient.requestAuthorization()
+                                            val pendingIntent = authorization.pendingIntent
+                                            if (pendingIntent != null) {
+                                                authorizationLauncher.launch(
+                                                    IntentSenderRequest.Builder(pendingIntent.intentSender).build()
+                                                )
+                                            } else {
+                                                val token = authorization.accessToken
+                                                if (token.isNullOrBlank()) {
+                                                    messageState.value = "Google did not return a YouTube access token."
+                                                } else {
+                                                    loadPlaylists(token)
+                                                }
+                                            }
+                                        } catch (error: Exception) {
+                                            messageState.value = error.localizedMessage ?: "YouTube authorization failed."
+                                        } finally {
+                                            busyState.value = false
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Load YouTube playlists") }
+                            Spacer(Modifier.height(8.dp))
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        busyState.value = true
                                         try {
                                             signIn.signOut()
                                             account = null
-                                            message = "Signed out."
+                                            playlistsState.value = emptyList()
+                                            messageState.value = "Signed out."
                                         } catch (error: Exception) {
-                                            message = error.localizedMessage ?: "Sign-out failed."
+                                            messageState.value = error.localizedMessage ?: "Sign-out failed."
                                         } finally {
-                                            busy = false
+                                            busyState.value = false
                                         }
                                     }
                                 },
@@ -98,15 +151,55 @@ class GoogleMusicAccountActivity : ComponentActivity() {
                             Spacer(Modifier.height(16.dp))
                             Text(it, color = MaterialTheme.colorScheme.error)
                         }
+                        if (playlists.isNotEmpty()) {
+                            Spacer(Modifier.height(20.dp))
+                            Text("Your YouTube playlists", style = MaterialTheme.typography.titleMedium)
+                            playlists.forEach { playlist ->
+                                Spacer(Modifier.height(8.dp))
+                                Text(playlist.title, style = MaterialTheme.typography.bodyLarge)
+                            }
+                        }
                         Spacer(Modifier.height(20.dp))
                         Text(
-                            "Google sign-in verifies your app account. YouTube playlist access needs a separate Google authorization grant; this screen does not request it.",
+                            "Playlist access uses Google's separate YouTube authorization. This loads playlist details only; it does not stream YouTube Music audio.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
+        }
+    }
+
+    private suspend fun completeAuthorization(data: Intent) {
+        busyState.value = true
+        try {
+            val token = playlistClient.authorizationResult(data).accessToken
+            if (token.isNullOrBlank()) {
+                messageState.value = "Google did not return a YouTube access token."
+            } else {
+                loadPlaylists(token)
+            }
+        } catch (error: Exception) {
+            messageState.value = error.localizedMessage ?: "Could not finish YouTube authorization."
+        } finally {
+            busyState.value = false
+        }
+    }
+
+    private suspend fun loadPlaylists(accessToken: String) {
+        busyState.value = true
+        try {
+            playlistsState.value = playlistClient.fetchMyPlaylists(accessToken)
+            messageState.value = if (playlistsState.value.isEmpty()) {
+                "No playlists were found on this YouTube account."
+            } else {
+                "Loaded ${playlistsState.value.size} playlists."
+            }
+        } catch (error: Exception) {
+            messageState.value = error.localizedMessage ?: "Could not load YouTube playlists."
+        } finally {
+            busyState.value = false
         }
     }
 }
