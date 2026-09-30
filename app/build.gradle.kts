@@ -116,7 +116,7 @@ android {
         buildConfigField("int", "TELEGRAM_API_ID", telegramApiId)
         buildConfigField("String", "TELEGRAM_API_HASH", "\"$telegramApiHash\"")
         val googleWebClientId = localProperties.getProperty("GOOGLE_WEB_CLIENT_ID")?.ifBlank { "" } ?: ""
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\\\"$googleWebClientId\\\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
     }
 
     signingConfigs {
