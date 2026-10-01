@@ -79,6 +79,12 @@
         </activity>
 
         <activity
+            android:name=".presentation.youtubemusic.YouTubeMusicLoginActivity"
+            android:exported="false"
+            android:label="YouTube Music Login"
+            android:theme="@style/Theme.PixelPlay" />
+
+        <activity
             android:name=".presentation.telegram.auth.TelegramLoginActivity"
             android:exported="false"
             android:label="Telegram Login"
