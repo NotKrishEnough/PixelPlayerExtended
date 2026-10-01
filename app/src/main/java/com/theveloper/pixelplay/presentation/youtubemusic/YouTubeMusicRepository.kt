@@ -33,14 +33,16 @@ object YouTubeMusicRepository {
 
         val pageRequest = Request.Builder().url(origin).header("Cookie", cookie)
             .header("User-Agent", userAgent).get().build()
-        val (apiKey, version) = client.newCall(pageRequest).execute().use { response ->
+        val (apiKey, version, visitorData) = client.newCall(pageRequest).execute().use { response ->
             val html = response.body?.string().orEmpty()
-            check(response.isSuccessful) { "YouTube Music config request failed: HTTP ${response.code}" }
-            val key = Regex("""["']INNERTUBE_API_KEY["']\s*:\s*["']([^"']+)["']""")
-                .find(html)?.groupValues?.get(1) ?: error("Couldn't read YouTube Music API configuration.")
-            val clientVersion = Regex("""["']INNERTUBE_CLIENT_VERSION["']\s*:\s*["']([^"']+)["']""")
-                .find(html)?.groupValues?.get(1) ?: "1.20260304.03.00"
-            key to clientVersion
+            check(response.isSuccessful) { "YouTube Music config request failed (HTTP ${response.code}). Check your connection and reconnect if needed." }
+            fun config(name: String): String? =
+                Regex("""["']$name["']\\s*:\\s*["']([^"']+)["']""").find(html)?.groupValues?.get(1)
+            val key = config("INNERTUBE_API_KEY")
+                ?: error("YouTube Music did not provide API configuration. Reconnect and retry.")
+            val clientVersion = config("INNERTUBE_CLIENT_VERSION")
+                ?: error("YouTube Music client version was not found. Please update and retry.")
+            Triple(key, clientVersion, config("VISITOR_DATA").orEmpty())
         }
         val timestamp = System.currentTimeMillis() / 1000
         val digest = MessageDigest.getInstance("SHA-1")
@@ -50,7 +52,8 @@ object YouTubeMusicRepository {
             .put("context", JSONObject().put("client", JSONObject()
                 .put("clientName", "WEB_REMIX")
                 .put("clientVersion", version)
-                .put("hl", "en").put("gl", "US")))
+                 .put("hl", "en").put("gl", "US")
+                .apply { if (visitorData.isNotBlank()) put("visitorData", visitorData) }))
             .put("browseId", "FEmusic_library_playlists").toString()
         val url = okhttp3.HttpUrl.Builder().scheme("https").host("music.youtube.com")
             .addPathSegments("youtubei/v1/browse").addQueryParameter("key", apiKey)
@@ -60,10 +63,23 @@ object YouTubeMusicRepository {
             .header("Cookie", cookie)
             .header("Authorization", "SAPISIDHASH ${timestamp}_$digest")
             .header("Origin", origin).header("X-Origin", origin)
+            .header("Referer", "$origin/")
+            .header("X-Goog-AuthUser", cookieMap["AUTHUSER"] ?: "0")
+            .header("X-YouTube-Client-Name", "67")
+            .header("X-YouTube-Client-Version", version)
             .header("User-Agent", userAgent).build()
         client.newCall(request).execute().use { response ->
             val raw = response.body?.string().orEmpty()
-            check(response.isSuccessful) { "YouTube Music library failed: HTTP ${response.code} — ${raw.take(240)}" }
+            if (!response.isSuccessful) {
+                val detail = runCatching { JSONObject(raw).optJSONObject("error")?.optString("message") }.getOrNull().orEmpty()
+                val hint = when (response.code) {
+                    400 -> "YouTube Music rejected the library request (HTTP 400). Its request parameters may have changed; reconnect and retry."
+                    401, 403 -> "YouTube Music rejected this session (HTTP ${response.code}). Reconnect your account and retry."
+                    429 -> "YouTube Music is rate-limiting requests. Wait a little and retry."
+                    else -> "YouTube Music library request failed (HTTP ${response.code})."
+                }
+                error(if (detail.isNotBlank()) "$hint $detail" else hint)
+            }
             val root = JSONObject(raw)
             val results = mutableListOf<YouTubeMusicPlaylist>()
             fun text(obj: JSONObject?): String {
