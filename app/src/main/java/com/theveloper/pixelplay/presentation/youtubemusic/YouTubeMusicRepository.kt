@@ -37,7 +37,7 @@ object YouTubeMusicRepository {
             val html = response.body?.string().orEmpty()
             check(response.isSuccessful) { "YouTube Music config request failed (HTTP ${response.code}). Check your connection and reconnect if needed." }
             fun config(name: String): String? =
-                Regex("""["']$name["']\\s*:\\s*["']([^"']+)["']""").find(html)?.groupValues?.get(1)
+                Regex("""["']$name["']\s*:\s*["']([^"']+)["']""").find(html)?.groupValues?.get(1)
             val key = config("INNERTUBE_API_KEY")
                 ?: error("YouTube Music did not provide API configuration. Reconnect and retry.")
             val clientVersion = config("INNERTUBE_CLIENT_VERSION")
