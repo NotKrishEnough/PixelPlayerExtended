@@ -85,6 +85,7 @@ import com.theveloper.pixelplay.presentation.navidrome.auth.NavidromeLoginActivi
 import com.theveloper.pixelplay.presentation.qqmusic.auth.QqMusicLoginActivity
 import com.theveloper.pixelplay.presentation.telegram.auth.TelegramLoginActivity
 import com.theveloper.pixelplay.presentation.viewmodel.AccountsViewModel
+import com.theveloper.pixelplay.presentation.youtubemusic.YouTubeMusicAccountCard
 import com.theveloper.pixelplay.presentation.viewmodel.ExternalAccountUiModel
 import com.theveloper.pixelplay.presentation.viewmodel.ExternalServiceAccount
 import kotlin.math.roundToInt
@@ -186,6 +187,10 @@ fun AccountsScreen(
                     connectedCount = uiState.connectedAccounts.size,
                     disconnectedCount = uiState.disconnectedServices.size
                 )
+            }
+
+            item {
+                YouTubeMusicAccountCard()
             }
 
             if (uiState.connectedAccounts.isNotEmpty()) {
